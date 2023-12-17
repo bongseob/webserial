@@ -1,0 +1,146 @@
+package com.ubi.rs232;
+
+import gnu.io.SerialPort;
+
+import java.awt.Label;
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Properties;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class Rs232Connect {
+
+	private Rs232Action act;
+
+	private Timer timer;
+
+	private Timer reTimer;
+
+	private String initFilePath;
+
+	private Label connectLabel;
+
+	public Rs232Connect() {
+		act = new Rs232Action();
+	}
+
+	public boolean PortConnect(String filePath, Label label) {
+		initFilePath = filePath;
+		connectLabel = label;
+		boolean connectFlag = false;
+		String portNameValue = null;
+		int databits = 0;
+		int stopbits = 0;
+		String parityEven = null;
+		int speed = 0;
+		Properties properties = new Properties();
+
+		try {
+			properties.load(new FileInputStream(filePath));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		portNameValue = properties.getProperty("port");
+		databits = Integer.parseInt(properties.getProperty("databits"));
+		stopbits = Integer.parseInt(properties.getProperty("stopbits"));
+		parityEven = properties.getProperty("parityEven");
+		speed = Integer.parseInt(properties.getProperty("speed"));
+		connectFlag = act.connection(portNameValue, speed, databits, stopbits, parityEven);
+		return connectFlag;
+	}
+
+	public void systemClose() {
+		SerialPort port = null;
+		BufferedInputStream in = null;
+		BufferedReader bufferedReader = null;
+		port = act.getPort();
+		in = act.getIn();
+		bufferedReader = act.getBufferedReader();
+		try {
+			if (in != null) {
+				in.close();
+			}
+			if (bufferedReader != null) {
+				bufferedReader.close();
+			}
+			if (port != null) {
+				port.close();
+			}
+			if (timer != null) {
+				timer.cancel();
+				timer.purge();
+			}
+			if (reTimer != null) {
+				reTimer.cancel();
+				reTimer.purge();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	};
+
+	public void portGetValue() {
+		act.portStart();
+		timer = new Timer();
+		TimerTask m_task = new TimerTask() {
+			@Override
+			public void run() {
+				String message = act.getSerialValue();
+				if (message.equals("notAvailable")) {
+					reConnect();
+				}
+			}
+		};
+		long delay = 1 * 700;
+		long intevalPeriod = 1 * 700;
+		timer.scheduleAtFixedRate(m_task, delay, intevalPeriod);
+	}
+
+	public void reConnect() {
+		SerialPort port = null;
+		BufferedInputStream in = null;
+		BufferedReader bufferedReader = null;
+		port = act.getPort();
+		in = act.getIn();
+		bufferedReader = act.getBufferedReader();
+		try {
+			if (in != null) {
+				in.close();
+			}
+			if (bufferedReader != null) {
+				bufferedReader.close();
+			}
+			if (port != null) {
+				port.close();
+			}
+			if (timer != null) {
+				timer.cancel();
+				timer.purge();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		reTimer = new Timer();
+		TimerTask re_task = new TimerTask() {
+			@Override
+			public void run() {
+				boolean reFlag = PortConnect(initFilePath, connectLabel);
+				if (reFlag) {
+					connectLabel.setText("연결성공");
+					portGetValue();
+					reTimer.cancel();
+					reTimer.purge();
+				} else {
+					connectLabel.setText("연결 재시도중....");
+				}
+			}
+		};
+		long delay = 1 * 700;
+		long intevalPeriod = 1 * 700;
+		reTimer.scheduleAtFixedRate(re_task, delay, intevalPeriod);
+	};
+}
